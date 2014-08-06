@@ -504,7 +504,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			default:d_type = -1;
 		}
 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, d_type);
-		//printk("Current pos%d\n", f_pos);
+		printk("Current pos%d\n", f_pos);
 		f_pos++;
 	}
 
@@ -673,7 +673,7 @@ static int32_t
 indir_index(uint32_t b)
 {
 	// Your code here.
-  if (b < OFPFS_NDIRECT)
+  if (b < OSPFS_NDIRECT)
     return -1;
   if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
     return 0;
@@ -693,7 +693,7 @@ indir_index(uint32_t b)
 static int32_t
 direct_index(uint32_t b)
 {
-  if (b < OFPFS_NDIRECT)
+  if (b < OSPFS_NDIRECT)
     return b;
   if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
     return b - OSPFS_NINDIRECT;
@@ -740,6 +740,7 @@ add_block(ospfs_inode_t *oi)
 
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t *allocated[2] = { 0, 0 };
+	(void) n, (void) allocated;
 
 	/* EXERCISE: Your code here */
 	return -EIO; // Replace this line
@@ -773,7 +774,7 @@ remove_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
-
+	(void) n;
 	/* EXERCISE: Your code here */
 	return -EIO; // Replace this line
 }
@@ -820,7 +821,8 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
 	uint32_t old_size = oi->oi_size;
 	int r = 0;
-
+	(void) old_size, (void) r;
+	
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
 		return -EIO; // Replace this line
@@ -936,7 +938,8 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 			n = OSPFS_BLKSIZE - start;
 		else n = remain;
 		// Copy data into buffer
-		copy_to_user(buffer, data+start, n);
+		if (copy_to_user(buffer, data+start, n))
+			printk("Not all bytes copied\n");
 
 		buffer += n;
 		amount += n;
@@ -1010,7 +1013,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 			n = OSPFS_BLKSIZE - start;
 		else n = remain;
 
-		copy_from_user(data+start, buffer, n);
+		if(copy_from_user(data+start, buffer, n))
+			printk("Not all bytes copied from user\n");
 
 		buffer += n;
 		amount += n;
@@ -1161,6 +1165,8 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+	(void) dir_oi;
+
 	/* EXERCISE: Your code here. */
 	return -EINVAL; // Replace this line
 
@@ -1204,6 +1210,8 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+
+	(void) dir_oi;
 
 	/* EXERCISE: Your code here. */
 	return -EINVAL;
