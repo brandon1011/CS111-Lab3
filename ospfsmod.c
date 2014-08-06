@@ -1091,7 +1091,20 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	//    Use ERR_PTR if this fails; otherwise, clear out all the directory
 	//    entries and return one of them.
 
-	/* EXERCISE: Your code here. */
+	/**** BRANDON CODE ****
+	 Currently does NOT add block to directory if full */
+
+	uint32_t f_pos = 0;	// Current pos in dir_oi
+	ospfs_direntry_t *dirent;	//Directory entry
+
+	while (f_pos < dir_oi->oi_size) {
+		// Iterate through each direntry in dir
+		dirent = ospfs_inode_data(dir_oi, f_pos);
+		if (dirent->od_ino == 0) // The direntry is empty
+			return dirent;
+		f_pos += OSPFS_DIRENTRY_SIZE;
+	}	
+
 	return ERR_PTR(-EINVAL); // Replace this line
 }
 
@@ -1166,6 +1179,8 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	uint32_t entry_ino = 0;
 	(void) dir_oi;
 
+	
+	
 	/* EXERCISE: Your code here. */
 	return -EINVAL; // Replace this line
 
