@@ -501,10 +501,10 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 				break;
 			case OSPFS_FTYPE_SYMLINK:
 				d_type = DT_LNK;
-			default:;
+			default:d_type = -1;
 		}
 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, d_type);
-		printk("Current pos%d\n", f_pos);
+		//printk("Current pos%d\n", f_pos);
 		f_pos++;
 	}
 
@@ -893,6 +893,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
 		// ospfs_inode_blockno returns 0 on error
 		if (blockno == 0) {
+			printk("Read Error\n");
 			retval = -EIO;
 			goto done;
 		}
@@ -965,6 +966,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		char *data;
 
 		if (blockno == 0) {
+			printk("Write error\n");
 			retval = -EIO;
 			goto done;
 		}
