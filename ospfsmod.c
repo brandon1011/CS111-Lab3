@@ -582,8 +582,17 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 static uint32_t
 allocate_block(void)
 {
-	/* EXERCISE: Your code here */
-	return 0;
+  // Iteratively check ith block and allocate if free.
+  uint32_t i;
+  void* os_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
+
+  for (i = 2; i < ospfs_super->os_nblocks; i++)
+    if(bitvector_test(os_bitmap, i))
+      {
+	bitvector_clear(os_bitmap, i);
+	return i;
+      }
+  return 0;
 }
 
 
@@ -601,7 +610,13 @@ allocate_block(void)
 static void
 free_block(uint32_t blockno)
 {
-	/* EXERCISE: Your code here */
+  // If blockno is within bounds and not a critical block, free it.
+  void* os_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
+  uint32_t reserved = ospfs_super->os_firstinob+ospfs_super->os_ninodes;
+
+  if (blockno < reserved || blockno >= ospfs_super->os_nblocks)
+    return;
+  bitvector_clear(os_bitmap, blockno);
 }
 
 
@@ -637,8 +652,9 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return 0;  
+  return -1;
 }
 
 
@@ -657,7 +673,11 @@ static int32_t
 indir_index(uint32_t b)
 {
 	// Your code here.
-	return -1;
+  if (b < OFPFS_NDIRECT)
+    return -1;
+  if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return 0;
+  return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT))/OSPFS_NDIRECT;
 }
 
 
@@ -673,8 +693,11 @@ indir_index(uint32_t b)
 static int32_t
 direct_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b < OFPFS_NDIRECT)
+    return b;
+  if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return b - OSPFS_NINDIRECT;
+  return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT))%OSPFS_NDIRECT;
 }
 
 
