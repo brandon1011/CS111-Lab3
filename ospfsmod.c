@@ -443,6 +443,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			f_pos++;
 	}
 
+	f_pos = 0;
 	// actual entries
 	while (r == 0 && ok_so_far >= 0 && f_pos >= 2) {
 		ospfs_direntry_t *od;
@@ -452,8 +453,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		r = 1;		/* Fix me! */
-		break;		/* Fix me! */
+		//r = 1;		/* Fix me! */
+		//break;		/* Fix me! */
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -474,12 +475,40 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * your function should advance f_pos by the proper amount to
 		 * advance to the next directory entry.
 		 */
+		//uint32_t blockno = ospfs_inode_blockno(dir_oi, f_pos);
+		//char *data;
+		char d_type;	// Type of file (DT_REG, DT_DIR, DT_LNK)
+		/*if (blockno = 0) {
+			//End of directory
+			r = 1;
+			//f_pos -= OSPFS_DIRENTRY_SIZE;
+			break;
+		}
+		// Get direntry at offset f_pos
+		data = ospfs_block(blockno) + (f_pos % OSPFS_BLKSIZE);*/
 
-		/* EXERCISE: Your code here */
+//		od = (ospfs_direntry_t *) data;
+		od = ospfs_inode_data(dir_oi, f_pos);
+		// Fetch inode corresponding to direntry
+		entry_oi = ospfs_inode(od->od_ino); 
+
+		switch(entry_oi->oi_ftype) {
+			case OSPFS_FTYPE_REG:
+				d_type = DT_REG;
+				break;
+			case OSPFS_FTYPE_DIR:
+				d_type = DT_DIR;
+				break;
+			case OSPFS_FTYPE_SYMLINK:
+				d_type = DT_LNK;
+			default:;
+		}
+		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos/OSPFS_DIRENTRY_SIZE+2, od->od_ino, d_type);
+		f_pos += OSPFS_DIRENTRY_SIZE; //Defined in ospfs.h
 	}
 
 	// Save the file position and return!
-	filp->f_pos = f_pos;
+	filp->f_pos = f_pos + 2;
 	return r;
 }
 
