@@ -637,6 +637,40 @@ free_block(uint32_t blockno)
 // indirect block).  We use these functions in our implementation of
 // change_size.
 
+// Search through all inode blocks for one that is not in use
+// Returns the inode number of the allocated inode, if any
+// Return -ENOSPC if no free inodes remain
+uint32_t
+allocate_inode(void) {
+	uint32_t ino = 0;	// Offset within inode data blocks
+	ospfs_inode_t *inode;
+
+	// Iterate through all inodes
+	while (ino < ospfs_super->os_ninodes) {
+		uint32_t ino_blockno = ospfs_super->os_firstinob+ino/OSPFS_BLKINODES;
+		uint32_t block_offset = ino % OSPFS_BLKINODES;
+		inode = (ospfs_inode_t *)(ospfs_block(ino_blockno) + block_offset);
+
+		if (inode->oi_nlink == 0) {
+			memset(inode, 0, OSPFS_INODESIZE);	// Set all prev data to 0
+			return ino;	// Return inode number
+		}
+		ino++;
+	}
+	return -ENOSPC;
+}
+
+// May not need this, okay to delete
+int
+release_inode(uint32_t ino) {
+	if (ino >= ospfs_super->os_ninodes) {
+		return -EINVAL;
+	}
+	return 0;
+}
+
+
+
 
 // int32_t indir2_index(uint32_t b)
 //	Returns the doubly-indirect block index for file block b.
@@ -1140,6 +1174,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
 	/* EXERCISE: Your code here. */
+	
 	return -EINVAL;
 }
 
@@ -1157,7 +1192,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //			   inode's oi_mode field to this value)
 //	      nd	-- ignore this
 //   Returns: 0 on success, -(error code) on error.  In particular:
-//               -ENAMETOOLONG if dentry->d_name.len is too large;
+//               -ENAMETOOLONG if dentry->d_name.len icopys too large;
 //               -EEXIST       if a file named the same as 'dentry' already
 //                             exists in the given 'dir';
 //               -ENOSPC       if the disk is full & the file can't be created;
@@ -1176,13 +1211,32 @@ static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
+	ospfs_direntry_t *elm_dirent;
+	ospfs_inode_t *elm_ino;
 	uint32_t entry_ino = 0;
-	(void) dir_oi;
 
+	if (find_direntry(dir_oi,dentry->d_name.name,dentry->d_name.len)==NULL)
+		return -EEXIST;	// Direntry already exists in dir
+
+	entry_ino = allocate_inode();	// Find an empty inode, if exists
+	if (entry_ino == -ENOSPC)
+		return -ENOSPC;
 	
+	elm_dirent = create_blank_direntry(dir_oi);
+	if (IS_ERR(elm_dirent))
+		return -ENOSPC;	// Directory is full
 	
-	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
+	// If name not too long, copy into direntry
+	if (dentry->d_name.len >= OSPFS_MAXNAMELEN)
+		return -ENAMETOOLONG;
+	copy_from_user(elm_dirent->od_name, dentry->d_name.name, dentry->d_name.len);
+
+	elm_ino = ospfs_inode(entry_ino);	// Get the inode just allocated
+	elm_ino->oi_mode = mode;
+	elm_ino->oi_ftype = OSPFS_FTYPE_REG;
+	elm_ino->oi_nlink++;	// Increment link count
+
+	elm_dirent->od_ino = entry_ino;
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
