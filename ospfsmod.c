@@ -935,7 +935,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 			n = OSPFS_BLKSIZE - start;
 		else n = remain;
 		// Copy data into buffer
-		memcpy(buffer, data+start, n);
+		copy_to_user(buffer, data+start, n);
 
 		buffer += n;
 		amount += n;
@@ -978,7 +978,9 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
-
+	
+	if (count > oi->oi_size-(*f_pos))
+		count = oi->oi_size-(*f_pos);
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -997,8 +999,16 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
 		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
+		
+		// My declarations
+		uint32_t start = (*f_pos) % OSPFS_BLKSIZE;
+		uint32_t remain = count-amount;
+		
+		if (remain > OSPFS_BLKSIZE - start)
+			n = OSPFS_BLKSIZE - start;
+		else n = remain;
+
+		copy_from_user(data+start, buffer, n);
 
 		buffer += n;
 		amount += n;
