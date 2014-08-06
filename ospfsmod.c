@@ -504,7 +504,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			default:d_type = -1;
 		}
 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, d_type);
-		printk("Current pos%d\n", f_pos);
+		printk("Current pos %d\n", f_pos);
 		f_pos++;
 	}
 
@@ -516,7 +516,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 // ospfs_unlink(dirino, dentry)
 //   This function is called to remove a file.
-//
+////
 //   Inputs: dirino  -- You may ignore this.
 //           dentry  -- The 'struct dentry' structure, which contains the inode
 //                      the directory entry points to and the directory entry's
