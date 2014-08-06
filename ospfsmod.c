@@ -738,11 +738,92 @@ add_block(ospfs_inode_t *oi)
   uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
   // keep track of allocations to free in case of -ENOSPC
-  uint32_t *allocated[2] = { 0, 0 };
+  uint32_t allocated[2] = { 0, 0 };
+  uint32_t* indir_table;
+  uint32_t** indir2_table;
   (void) n, (void) allocated;
+  uint32_t new_blockno;
+  
+  // If we have available direct block
+  if (n < OSPFS_NDIRECT)
+    {
+      new_blockno = allocate_block();
+      if(!new_blockno)
+	return -ENOSPC;
+      memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
+      oi->oi_direct[n] = new_blockno;
+    }
+  // If we need an indirect block
+  else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    {
+      if (!oi->oi_indirect)
+	{
+	  new_blockno = allocate_block();
+	  if (!new_blockno)
+	    return -ENOSPC;
+	  memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+	  allocated[1] = 1;
+	  oi->oi_indirect = new_blockno;
+	}
 
-  /* EXERCISE: Your code here */
-  return -EIO; // Replace this line
+      new_blockno = allocate_block();
+      if (!new_blockno)
+	{
+	  if (allocated[1])
+	    free_block(oi->oi_indirect);
+	  return -ENOSPC;
+	}
+      memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+
+      indir_table = (uint32_t*) ospfs_block(oi->oi_indirect);
+      indir_table[dir_index(n)] = new_blockno;
+    }
+  // We need a doubly indirect block
+  else if (n < OSPFS_MAXFILEBLKS)
+    {
+      if (!oi->oi_indirect2)
+	{
+	  new_blockno = allocate_block();
+	  if (!new_blockno)
+	    return -ENOSPC;
+	  memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+	  allocated[0] = 1;
+	  oi->oi_indirect2 = new_blockno;
+	}		
+
+      indir2_table = (uint32_t**) ospfs_block(oi->oi_indirect2);
+      if (!indir2_table[indir_index(n)])
+	{
+	  new_blockno = allocate_block();
+	  if (!new_blockno)
+	    {
+	      if (allocated[0])
+		free_block(oi->oi_indirect2);
+	      return -ENOSPC;
+	    }
+	  memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+	  allocated[1] = 1;
+	  indir2_table[indir_index(n)] = new_blockno;
+	}
+      
+      new_blockno = allocate_block();
+      if (!new_blockno)
+	{
+	  if (allocated[1])
+	    free_block(indir2_table[indir_index(n)]);
+	  if (allocated[0])
+	    free_block(oi->oi_indirect2);
+	}                
+      memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+      
+      indir_table = (uint32_t*) ospfs_block(indir2_table[indir_index(n)]);
+      indir_table[dir_index(n)] = new_blockno;
+    }
+  // File has maximum blocks already
+  else
+    return -EIO;
+  oi->oi_size+= OSPFS_BLKSIZE;
+  return 0;
 }
 
 
@@ -774,8 +855,50 @@ remove_block(ospfs_inode_t *oi)
   // current number of blocks in file
   uint32_t n = ospfs_size2nblocks(oi->oi_size);
   (void) n;
-  /* EXERCISE: Your code here */
-  return -EIO; // Replace this line
+  uint32_t* indir_table;
+  uint32_t** indir2_table;
+  
+  // If empty file - return.
+  if (!n)
+    return -EIO;
+  // Next allocated block is direct
+  else if (n <= OSPFS_NDIRECT)
+    {
+      free_block(oi->oi_direct[n-1]);      
+      oi->oi_direct[n-1] = 0;
+    }
+  // Next allocated block is indirect
+  else if (n <= OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    {
+      indir_table = (uint32_t*) ospfs_block(oi->oi_indirect);      
+      free_block(indir_table[dir_index(n-1)]);
+      indir_table[dir_index(n-1)] = 0;
+      if (!dir_index(n-1))
+	{
+	  free_block(oi->oi_indirect);
+	  oi->oi_indirect = 0;
+	}
+    }
+  // Next allocated block is doubly indirect
+  else
+    {
+      indir2_table = (uint32_t**) ospfs_block(oi->oi_indirect2);
+      indir_table = (uint32_t*) ospfs_block(indir2_table[indir_index(n-1)]);
+      free_block(indir_table[dir_index(n-1)]);
+      indir_table[dir_index(n-1)] = 0;
+      if (!dir_index(n-1))
+	{
+	  free_block(indir_table[indir_index(n-1)]);
+	  indir_table[indir_index(n-1)] = 0;
+	  if (!indir_index(n-1))
+	    {
+	      free_block(oi->oi_indirect2);
+	      oi->oi_indirect2 = 0;
+	    }
+	}
+    }  
+  oi->oi_size -= OSPFS_BLKSIZE;
+  return 0;
 }
 
 
