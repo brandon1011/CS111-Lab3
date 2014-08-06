@@ -740,8 +740,35 @@ add_block(ospfs_inode_t *oi)
 
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t *allocated[2] = { 0, 0 };
+	uint32_t new_blockno;
 
-	/* EXERCISE: Your code here */
+	if (n >= OSPFS_MAXFILEBLKS)
+	  return -EIO;
+	
+	// If we need doubly indirect block
+	if (n >= OSPFS_NDIRECT + OSPFS_NINDIRECT)
+	  {
+	    if (!oi->oi_indirect2)
+	      {
+		new_blockno = allocate_block();
+		if (!new_blockno)
+		  return -ENOSPC;
+		memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);		
+	      }		
+
+	  }
+	// If we have available direct block
+	if (n < OSPFS_NDIRECT)
+	  {
+	    new_blockno = allocate_block();
+	    if(!new_blockno)
+	      return -ENOSPC;
+	    memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
+	    oi->oi_direct[n] = new_blockno;
+	  }
+	// If we need an indirect block
+	else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+	  {
 	return -EIO; // Replace this line
 }
 
