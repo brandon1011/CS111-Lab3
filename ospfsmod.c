@@ -479,8 +479,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		// Real byte offset into directory data 
 		uint32_t offset = (f_pos-2)*OSPFS_DIRENTRY_SIZE;	
 		
-		if (offset >= dir_oi->oi_size)
-		{
+		if (offset >= dir_oi->oi_size) {
 			r = 1;
 			break;
 		}
@@ -504,7 +503,6 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			default:d_type = -1;
 		}
 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, d_type);
-		printk("Current pos %d\n", f_pos);
 		f_pos++;
 	}
 
@@ -1016,8 +1014,10 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
 	
-	if (count > oi->oi_size-(*f_pos))
-		count = oi->oi_size-(*f_pos);
+	if (count > oi->oi_size-(*f_pos)) {
+		printk("writing past EOF\n");
+		count = oi->oi_size-(*f_pos); 
+	}
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1173,9 +1173,29 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
-	/* EXERCISE: Your code here. */
+	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
+	ospfs_inode_t *src_oi = ospfs_inode(src_dentry->d_inode->i_ino);
 	
-	return -EINVAL;
+
+	char* name = dst_dentry->d_name.name;
+	uint32_t len = dst_dentry->d_name.len;
+	
+	if (len >= OSPFS_MAXNAMELEN)
+		return -ENAMETOOLONG;
+	if (find_direntry(dir_oi, name, len)!= NULL)
+		return -EEXIST;
+	
+	// Create direntry in dir_oi if possible
+	ospfs_direntry_t *dst_dirent = create_blank_direntry(dir_oi);
+	if(IS_ERR(dst_dirent))
+		return -ENOSPC;
+	
+	// Copy info from src dirent to new dirent
+	copy_from_user(dst_dirent->od_name, name, len);
+	dst_dirent->od_ino = src_dentry->d_inode->i_ino;
+	dst_dentry->d_inode->i_ino = src_dentry->d_inode->i_ino;
+		
+	return 0;
 }
 
 // ospfs_create
@@ -1215,8 +1235,11 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_inode_t *elm_ino;
 	uint32_t entry_ino = 0;
 
-	if (find_direntry(dir_oi,dentry->d_name.name,dentry->d_name.len)==NULL)
+	if (find_direntry(dir_oi,dentry->d_name.name,dentry->d_name.len)!=NULL)
+ 	{
+		printk("Name exists\n");
 		return -EEXIST;	// Direntry already exists in dir
+	}
 
 	entry_ino = allocate_inode();	// Find an empty inode, if exists
 	if (entry_ino == -ENOSPC)
