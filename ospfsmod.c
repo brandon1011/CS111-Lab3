@@ -587,11 +587,10 @@ allocate_block(void)
   void* os_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
 
   for (i = 2; i < ospfs_super->os_nblocks; i++)
-    if(bitvector_test(os_bitmap, i))
-      {
-	bitvector_clear(os_bitmap, i);
-	return i;
-      }
+     if(bitvector_test(os_bitmap, i))  {
+         bitvector_clear(os_bitmap, i);
+	      return i;
+     }
   return 0;
 }
 
@@ -616,7 +615,7 @@ free_block(uint32_t blockno)
 
   if (blockno < reserved || blockno >= ospfs_super->os_nblocks)
     return;
-  bitvector_clear(os_bitmap, blockno);
+  bitvector_set(os_bitmap, blockno);
 }
 
 
