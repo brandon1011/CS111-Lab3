@@ -1174,7 +1174,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
-	ospfs_inode_t *src_oi = ospfs_inode(src_dentry->d_inode->i_ino);
+	ospfs_inode_t *ino = ospfs_inode(src_dentry->d_inode->i_ino);
 	
 
 	char* name = dst_dentry->d_name.name;
@@ -1194,6 +1194,8 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	copy_from_user(dst_dirent->od_name, name, len);
 	dst_dirent->od_ino = src_dentry->d_inode->i_ino;
 	dst_dentry->d_inode->i_ino = src_dentry->d_inode->i_ino;
+
+	ino->oi_nlink++;	// Increment link count
 		
 	return 0;
 }
@@ -1300,12 +1302,36 @@ static int
 ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
+	ospfs_direntry_t *symlink_dentry;
+	ospfs_symlink_inode_t *sym_oi;
 	uint32_t entry_ino = 0;
+	
+	uint32_t symname_len = strlen(symname);
+	uint32_t len = dentry->d_name.len;
+	char* name = dentry->d_name.name;
 
-	(void) dir_oi;
+	// Check if filename is too long or exists in dir
+	if (symname_len >= OSPFS_MAXSYMLINKLEN || len >= OSPFS_MAXNAMELEN)
+		return -ENAMETOOLONG;
+	if (find_direntry(dir_oi, name) != NULL)
+		return -EEXIST;
+	
+	// Create direntry for the symlink in dir
+	entry_ino = allocate_inode();
+	symlink_dentry = create_blank_direntry(dir_oi);
+	if (IS_ERR(symlink_dentry))
+		return -ENOSPC;
 
-	/* EXERCISE: Your code here. */
-	return -EINVAL;
+	// Fill in direntry for symlink
+	copy_from_user(symlink_dentry->od_name, name, len);
+	symlink_dentry->od_ino = entry_ino;
+
+	// Fill in inode for simlink
+	symlink_oi = (ospfs_symlink_inode_t *) ospfs_inode(entry_ino);
+	symlink_oi->oi_size = symname_len;
+	symlink_oi->ftype = OSPFS_FTYPE_SYMLINK;
+	symlink_oi->nlink = 1;
+	copy_from_user(symlink_oi->oi_symlink, symname, symname_len);
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
