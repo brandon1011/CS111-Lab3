@@ -731,7 +731,7 @@ direct_index(uint32_t b)
   if (b < OSPFS_NDIRECT)
     return b;
   if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
-    return b - OSPFS_NINDIRECT;
+    return b - OSPFS_NDIRECT;
   return (b - (OSPFS_NDIRECT + OSPFS_NINDIRECT))%OSPFS_NDIRECT;
 }
 
@@ -805,19 +805,25 @@ add_block(ospfs_inode_t *oi)
 	  memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
 	  alloced_indir = 1;
 	  oi->oi_indirect = new_blockno;
+	  eprintk("Indirect block allocated: %d\n", oi->oi_indirect);
 	}
 
       new_blockno = allocate_block();
       if (!new_blockno)
 	{
 	  if (alloced_indir)
-	    free_block(oi->oi_indirect);
+	    {
+	      free_block(oi->oi_indirect);
+	      oi->oi_indirect = 0;
+	    }
 	  return -ENOSPC;
 	}
       memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
 
-      indir_table = (uint32_t*) ospfs_block(oi->oi_indirect);
+      indir_table = ospfs_block(oi->oi_indirect);
       indir_table[directIndex] = new_blockno;
+      eprintk("direct index: %d\n", directIndex);
+      eprintk("direct block in indirect block: %d\n", indir_table[directIndex]);
     }
   // We need a doubly indirect block
   else if (n < OSPFS_MAXFILEBLKS)
@@ -839,7 +845,10 @@ add_block(ospfs_inode_t *oi)
 	  if (!new_blockno)
 	    {
 	      if (alloced_indir2)
-		free_block(oi->oi_indirect2);
+		{
+		  free_block(oi->oi_indirect2);
+		  oi->oi_indirect2 = 0;
+		}
 	      return -ENOSPC;
 	    }
 	  memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
@@ -851,9 +860,15 @@ add_block(ospfs_inode_t *oi)
       if (!new_blockno)
 	{
 	  if (alloced_indir)
-	    free_block(indir2_table[indirIndex]);
+	    {
+	      free_block(indir2_table[indirIndex]);
+	      indir2_table[indirIndex] = 0;
+	    }
 	  if (alloced_indir2)
-	    free_block(oi->oi_indirect2);
+	    {
+	      free_block(oi->oi_indirect2);
+	      oi->oi_indirect2 = 0;
+	    }
 	}                
       memset(ospfs_block(new_blockno), 0, OSPFS_BLKSIZE);
       
@@ -1158,6 +1173,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
   char *data;
   uint32_t start;
   uint32_t remain;
+  uint32_t* table;
   eprintk("opsfs_write\n");
 
   // Support files opened with the O_APPEND flag.  To detect O_APPEND,
@@ -1178,7 +1194,9 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 			return -ENOSPC;
 		printk("Change successful\n");
   }
-
+  table = ospfs_block(oi->oi_indirect);
+  eprintk("indirect block: %d\n", oi->oi_indirect);
+  eprintk("direct block: %d\n", table[0]);
   // Copy data block by block
   while (amount < count && retval >= 0) {
     blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1203,7 +1221,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
     if (remain > OSPFS_BLKSIZE - start)
       n = OSPFS_BLKSIZE - start;
     else n = remain;
-
+    eprintk("blockno: %d\n",blockno);
     if(copy_from_user(data+start, buffer, n))
       printk("Not all bytes copied from user\n");
 
