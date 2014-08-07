@@ -1172,11 +1172,11 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 
   // Resize file until it can fit the file
-  while (count+(*f_pos) > oi->oi_size) {
-		printk("Growing the file size\n");
+  if (count+(*f_pos) > (oi->oi_size)) {
+		printk("Changing the file size\n");
 		if (change_size(oi, (*f_pos)+count))
 			return -ENOSPC;
-		printk("Growing successful\n");
+		printk("Change successful\n");
   }
 
   // Copy data block by block
@@ -1425,7 +1425,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
   // If name not too long, copy into direntry
   if (dentry->d_name.len >= OSPFS_MAXNAMELEN)
     return -ENAMETOOLONG;
-  if(memcpy(elm_dirent->od_name, dentry->d_name.name, dentry->d_name.len));
+  strcpy(elm_dirent->od_name, dentry->d_name.name);
 
   elm_ino = ospfs_inode(entry_ino);// Get the inode just allocated
   elm_ino->oi_mode = mode;
