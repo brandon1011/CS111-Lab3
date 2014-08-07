@@ -1172,11 +1172,11 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 
   // Resize file until it can fit the file
-  while (count+(*f_pos) > oi->oi_size) {
-		printk("Growing the file size\n");
+  if (count+(*f_pos) > (oi->oi_size)) {
+		printk("Changing the file size\n");
 		if (change_size(oi, (*f_pos)+count))
 			return -ENOSPC;
-		printk("Growing successful\n");
+		printk("Change successful\n");
   }
 
   // Copy data block by block
