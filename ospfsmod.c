@@ -352,6 +352,7 @@ ospfs_dir_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *ign
   ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
   struct inode *entry_inode = NULL;
   int entry_off;
+  ospfs_direntry_t *od;
 
   // Make sure filename is not too long
   if (dentry->d_name.len > OSPFS_MAXNAMELEN)
@@ -364,7 +365,7 @@ ospfs_dir_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *ign
   for (entry_off = 0; entry_off < dir_oi->oi_size;
        entry_off += OSPFS_DIRENTRY_SIZE) {
     // Find the OSPFS inode for the entry
-    ospfs_direntry_t *od = ospfs_inode_data(dir_oi, entry_off);
+    od = ospfs_inode_data(dir_oi, entry_off);
 
     // Set 'entry_inode' if we find the file we are looking for
     if (od->od_ino > 0
@@ -1150,29 +1151,35 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
   ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
   int retval = 0;
   size_t amount = 0;
+  uint32_t blockno;
+  uint32_t n;
+  char *data;
+  uint32_t start;
+  uint32_t remain;
+
 
   // Support files opened with the O_APPEND flag.  To detect O_APPEND,
   // use struct file's f_flags field and the O_APPEND bit.
-  /* EXERCISE: Your code here */
 
+  if(filp->f_flags & O_APPEND)
+    {
+      *f_pos = oi->oi_size;
+    }
   // If the user is writing past the end of the file, change the file's
   // size to accomodate the request.  (Use change_size().)
-  /* EXERCISE: Your code here */
+
 
   // Resize file until it can fit the file
-  while (count >= oi->oi_size-(*f_pos)) {
+  while (count+(*f_pos) > oi->oi_size) {
 		printk("Growing the file size\n");
-		if (change_size(oi, oi->oi_size+OSPFS_BLKSIZE))
+		if (change_size(oi, (*f_pos)+count))
 			return -ENOSPC;
 		printk("Growing successful\n");
   }
 
   // Copy data block by block
   while (amount < count && retval >= 0) {
-    uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
-    uint32_t n;
-    char *data;
-
+    blockno = ospfs_inode_blockno(oi, *f_pos);
     if (blockno == 0) {
       printk("Write error\n");
       retval = -EIO;
@@ -1185,11 +1192,11 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
     // Copy data from user space. Return -EFAULT if unable to read
     // read user space.
     // Keep track of the number of bytes moved in 'n'.
-    /* EXERCISE: Your code here */
+
 
     // My declarations
-    uint32_t start = (*f_pos) % OSPFS_BLKSIZE;
-    uint32_t remain = count-amount;
+    start = (*f_pos) % OSPFS_BLKSIZE;
+    remain = count-amount;
 
     if (remain > OSPFS_BLKSIZE - start)
       n = OSPFS_BLKSIZE - start;
@@ -1223,10 +1230,11 @@ static ospfs_direntry_t *
 find_direntry(ospfs_inode_t *dir_oi, const char *name, int namelen)
 {
   int off;
+  ospfs_direntry_t *od;
   if (namelen < 0)
     namelen = strlen(name);
   for (off = 0; off < dir_oi->oi_size; off += OSPFS_DIRENTRY_SIZE) {
-    ospfs_direntry_t *od = ospfs_inode_data(dir_oi, off);
+    od = ospfs_inode_data(dir_oi, off);
     if (od->od_ino
 	&& strlen(od->od_name) == namelen
 	&& memcmp(od->od_name, name, namelen) == 0)
@@ -1279,7 +1287,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 
   uint32_t f_pos = 0;// Current pos in dir_oi
   ospfs_direntry_t *dirent;//Directory entry
-
+  uint32_t retval;
   while (f_pos < dir_oi->oi_size) {
     // Iterate through each direntry in dir
     dirent = ospfs_inode_data(dir_oi, f_pos);
@@ -1289,7 +1297,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
   }
   // Allocate another block to dir (returns nonzero if error)
   //if (change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE))
-  uint32_t retval = change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE);
+  retval = change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE);
   printk("Attempting to grow dir%d\n", (int) retval);
   if (retval != 0)
 		return ERR_PTR(-EINVAL); // Replace this line
