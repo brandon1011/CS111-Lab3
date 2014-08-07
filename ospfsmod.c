@@ -1288,8 +1288,10 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
     f_pos += OSPFS_DIRENTRY_SIZE;
   }
   // Allocate another block to dir (returns nonzero if error)
-  printk("Attempting to grow dir\n");
-  if (change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE))
+  //if (change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE))
+  uint32_t retval = change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE);
+  printk("Attempting to grow dir%d\n", (int) retval);
+  if (retval != 0)
 		return ERR_PTR(-EINVAL); // Replace this line
 
   return ospfs_inode_data(dir_oi, f_pos);
