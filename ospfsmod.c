@@ -987,7 +987,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
     retval = add_block(oi);
     if (retval < 0)
       {
-	while (r > 0)
+	while (r-- > 0)
 	  remove_block(oi);
 	return retval;
       } 
@@ -998,7 +998,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
     retval = add_block(oi);
     if (retval < 0)
       {
-	while (r > 0)
+	while (r-- > 0)
 	  add_block(oi);
 	return retval;
       } 
