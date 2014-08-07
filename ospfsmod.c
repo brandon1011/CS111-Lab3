@@ -1093,7 +1093,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
   ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
   int retval = 0;
   size_t amount = 0;
-  eprintk("ospfs_read\n");
+  //eprintk("ospfs_read\n");
   // Make sure we don't read past the end of the file!
   // Change 'count' so we never read past the end of the file.
   /* EXERCISE: Your code here */
@@ -1115,7 +1115,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
     // ospfs_inode_blockno returns 0 on error
     if (blockno == 0) {
-      printk("Read Error\n");
+      //printk("Read Error\n");
       retval = -EIO;
       goto done;
     }
@@ -1135,8 +1135,8 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
       n = OSPFS_BLKSIZE - start;
     else n = remain;
     // Copy data into buffer
-    if (copy_to_user(buffer, data+start, n))
-      printk("Not all bytes copied\n");
+    if (copy_to_user(buffer, data+start, n));
+      //printk("Not all bytes copied\n");
 
     buffer += n;
     amount += n;
@@ -1555,6 +1555,27 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
     (ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
   // Exercise: Your code here.
 
+	char* first_exp;
+	char* last_exp;
+	first_exp = strstr(oi->oi_symlink, "root?");
+
+	//printk("First char = %c\n", *oi->oi_symlink);
+	if (first_exp != NULL) {
+		char* real_link = NULL;
+		last_exp = strstr(oi->oi_symlink,":"); // second starts after ':'
+
+		if (current->uid == 0) {
+			//printk("I am ROOT\n");
+			*last_exp = '\0';
+			real_link = oi->oi_symlink+5;
+		}
+		else  {
+			//printk("Not ROOT\n");
+			real_link = last_exp+1;
+		}
+		nd_set_link(nd, real_link);
+		return (void *) 0;
+	}
   nd_set_link(nd, oi->oi_symlink);
   return (void *) 0;
 }
