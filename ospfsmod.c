@@ -554,7 +554,9 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
   }
 
   od->od_ino = 0;
-  oi->oi_nlink--;
+  if(!--oi->oi_nlink && oi->oi_ftype == OSPFS_FTYPE_REG)
+    change_size(oi, 0);
+  eprintk("direct block: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oi->oi_direct[0],oi->oi_direct[1],oi->oi_direct[2],oi->oi_direct[3],oi->oi_direct[4],oi->oi_direct[5],oi->oi_direct[6],oi->oi_direct[7],oi->oi_direct[8],oi->oi_direct[9]);
   return 0;
 }
 
@@ -593,6 +595,7 @@ allocate_block(void)
   for (i = 2; i < ospfs_super->os_nblocks; i++)
     if(bitvector_test(os_bitmap, i))  {
       bitvector_clear(os_bitmap, i);
+      eprintk("Alloced block#: %d\n", i);
       return i;
     }
   return 0;
@@ -615,10 +618,11 @@ free_block(uint32_t blockno)
 {
   // If blockno is within bounds and not a critical block, free it.
   void* os_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
-  uint32_t reserved = ospfs_super->os_firstinob+ospfs_super->os_ninodes;
-
+  uint32_t reserved = ospfs_super->os_firstinob+(ospfs_size2nblocks(ospfs_super->os_ninodes*OSPFS_INODESIZE));
+  eprintk("free_block: %d reserved: %d first inode: %d n_nodes: %d \n", blockno, reserved, ospfs_super->os_firstinob, ospfs_super->os_ninodes);
   if (blockno < reserved || blockno >= ospfs_super->os_nblocks)
     return;
+  eprintk("Clear block#: %d\n", blockno);
   bitvector_set(os_bitmap, blockno);
 }
 
@@ -915,19 +919,21 @@ remove_block(ospfs_inode_t *oi)
   uint32_t directIndex = direct_index(n-1);
 
   (void) n;
-  
+  eprintk("remove block\n");
   // If empty file - return.
   if (!n)
     return -EIO;
   // Next allocated block is direct
   else if (n <= OSPFS_NDIRECT)
     {
+      eprintk("direct remove blk#: %d\n", oi->oi_direct[n-1]);
       free_block(oi->oi_direct[n-1]);      
       oi->oi_direct[n-1] = 0;
     }
   // Next allocated block is indirect
   else if (n <= OSPFS_NDIRECT + OSPFS_NINDIRECT)
     {
+      eprintk("indirect remove\n");
       indir_table = (uint32_t*) ospfs_block(oi->oi_indirect);      
       free_block(indir_table[directIndex]);
       indir_table[directIndex] = 0;
@@ -940,6 +946,7 @@ remove_block(ospfs_inode_t *oi)
   // Next allocated block is doubly indirect
   else
     {
+      eprintk("indirect2 remove\n");
       indir2_table = (uint32_t**) ospfs_block(oi->oi_indirect2);
       indir_table = (uint32_t*) ospfs_block(indir2_table[indirIndex]);
       free_block(indir_table[directIndex]);
@@ -1002,20 +1009,20 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
   int r = 0;
   int retval;
   (void) old_size, (void) r;
-  eprintk("change_size\n");
+  eprintk("change_size from %d to %d\n", oi->oi_size, new_size);
   while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
-    /* EXERCISE: Your code here */
+    eprintk("Growing...\n");
     retval = add_block(oi);
     if (retval < 0)
       {
 	while (r-- > 0)
-	  remove_block(oi);
+	  free_block(oi);
 	return retval;
       } 
     r++;
   }
   while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
-    /* EXERCISE: Your code here */
+    eprintk("Shrinking...\n");
     retval = remove_block(oi);
     if (retval < 0)
       {
@@ -1195,8 +1202,9 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		printk("Change successful\n");
   }
   table = ospfs_block(oi->oi_indirect);
+  eprintk("direct block: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oi->oi_direct[0],oi->oi_direct[1],oi->oi_direct[2],oi->oi_direct[3],oi->oi_direct[4],oi->oi_direct[5],oi->oi_direct[6],oi->oi_direct[7],oi->oi_direct[8],oi->oi_direct[9]);
   eprintk("indirect block: %d\n", oi->oi_indirect);
-  eprintk("direct block: %d\n", table[0]);
+  eprintk("in-direct block: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", table[0],table[1],table[2],table[3],table[4],table[5],table[6],table[7],table[8],table[9],table[10]);
   // Copy data block by block
   while (amount < count && retval >= 0) {
     blockno = ospfs_inode_blockno(oi, *f_pos);
