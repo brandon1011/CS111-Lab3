@@ -542,6 +542,9 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
   for (entry_off = 0; entry_off < dir_oi->oi_size;
        entry_off += OSPFS_DIRENTRY_SIZE) {
     od = ospfs_inode_data(dir_oi, entry_off);
+
+	printk("Links Remaining: %d\n", od->od_ino);
+
     if (od->od_ino > 0
 	&& strlen(od->od_name) == dentry->d_name.len
 	&& memcmp(od->od_name, dentry->d_name.name, dentry->d_name.len) == 0)
