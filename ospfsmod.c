@@ -1302,9 +1302,6 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
   //    Use ERR_PTR if this fails; otherwise, clear out all the directory
   //    entries and return one of them.
 
-  /**** BRANDON CODE ****
-	Currently does NOT add block to directory if full */
-
   uint32_t f_pos = 0;// Current pos in dir_oi
   ospfs_direntry_t *dirent;//Directory entry
   uint32_t retval;
@@ -1317,8 +1314,8 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
       return dirent;
     f_pos += OSPFS_DIRENTRY_SIZE;
   }
+  
   // Allocate another block to dir (returns nonzero if error)
-  //if (change_size(dir_oi, dir_oi->oi_size+OSPFS_BLKSIZE))
   retval = change_size(dir_oi, dir_oi->oi_size+OSPFS_DIRENTRY_SIZE);
   printk("Attempting to grow dir%d\n", (int) retval);
   if (retval != 0)
@@ -1363,9 +1360,10 @@ static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
   ospfs_direntry_t *dst_dirent;
   ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
-  ospfs_inode_t *ino = ospfs_inode(src_dentry->d_inode->i_ino);
+  ospfs_inode_t *src_inode = ospfs_inode(src_dentry->d_inode->i_ino);
+  printk("Source Inode #%d", (int) src_dentry->d_inode->i_ino);
 
-
+  
   char* name = (char*) dst_dentry->d_name.name;
   uint32_t len = dst_dentry->d_name.len;
   eprintk("ospfs_link\n");
@@ -1374,18 +1372,17 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
   if (find_direntry(dir_oi, name, len)!= NULL)
     return -EEXIST;
 
+
   // Create direntry in dir_oi if possible
   dst_dirent = create_blank_direntry(dir_oi);
   if(IS_ERR(dst_dirent))
     return -ENOSPC;
 
   // Copy info from src dirent to new dirent
-  copy_from_user(dst_dirent->od_name, name, len);
+  strcpy(dst_dirent->od_name, name);
   dst_dirent->od_ino = src_dentry->d_inode->i_ino;
-  dst_dentry->d_inode->i_ino = src_dentry->d_inode->i_ino;
-
-  ino->oi_nlink++;// Increment link count
-
+  //dst_dentry->d_inode = src_dentry->d_inode;
+  src_inode->oi_nlink++;// Increment link count
   return 0;
 }
 
@@ -1512,7 +1509,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
     return -ENOSPC;
 
   // Fill in direntry for symlink
-  if(copy_from_user(symlink_dentry->od_name, name, len));
+  strcpy(symlink_dentry->od_name, name);
   symlink_dentry->od_ino = entry_ino;
 
   // Fill in inode for simlink
@@ -1520,7 +1517,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
   symlink_oi->oi_size = symname_len;
   symlink_oi->oi_ftype = OSPFS_FTYPE_SYMLINK;
   symlink_oi->oi_nlink = 1;
-  if(copy_from_user(symlink_oi->oi_symlink, symname, symname_len));
+  strcpy(symlink_oi->oi_symlink, symname);
 
   /* Execute this code after your function has successfully created the
         file.  Set entry_ino to the created file's inode number before
