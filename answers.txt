@@ -9,13 +9,13 @@
 # If you have any other information you'd like us to know, please add it at the end of the file.
 
 # Partner 1
-Name: 
+Name: Kevin Luc
 Student ID: 
 Email: 
 
 # Partner 2 (if you're working in a team)
-Name: 
-Student ID: 
-Email: 
+Name: Brandon Wu	
+Student ID: 603859458
+Email: brandonwu@ucla.edu
 
 # Add any other information you'd like us to know below this line.
