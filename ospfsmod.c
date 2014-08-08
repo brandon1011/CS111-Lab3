@@ -1502,7 +1502,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
   ospfs_direntry_t *symlink_dentry;
   ospfs_symlink_inode_t *symlink_oi;
   uint32_t entry_ino = 0;
-
+  char* temp;
   uint32_t symname_len = strlen(symname);
   uint32_t len = dentry->d_name.len;
   char* name = dentry->d_name.name;
@@ -1523,12 +1523,21 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
   strcpy(symlink_dentry->od_name, name);
   symlink_dentry->od_ino = entry_ino;
 
+
   // Fill in inode for simlink
   symlink_oi = (ospfs_symlink_inode_t *) ospfs_inode(entry_ino);
   symlink_oi->oi_size = symname_len;
   symlink_oi->oi_ftype = OSPFS_FTYPE_SYMLINK;
   symlink_oi->oi_nlink = 1;
-  strcpy(symlink_oi->oi_symlink, symname);
+  if ((temp = strstr(symname, "root?")))
+    {
+      symlink_oi->oi_symlink[0] = '?';
+      strcpy(symlink_oi->oi_symlink+1, temp+5);
+      temp = strchr(symlink_oi->oi_symlink,':');
+      *temp = 0;
+    }
+  else
+    strcpy(symlink_oi->oi_symlink, symname);
 
   /* Execute this code after your function has successfully created the
         file.  Set entry_ino to the created file's inode number before
@@ -1563,27 +1572,24 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
     (ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
   // Exercise: Your code here.
 
-	char* first_exp;
-	char* last_exp;
-	first_exp = strstr(oi->oi_symlink, "root?");
+	char* real_link = NULL;
+	eprintk("following link: %s\n", oi->oi_symlink);
+	if (oi->oi_symlink[0] == '?') {
 
-	//printk("First char = %c\n", *oi->oi_symlink);
-	if (first_exp != NULL) {
-		char* real_link = NULL;
-		last_exp = strstr(oi->oi_symlink,":"); // second starts after ':'
+
 
 		if (current->uid == 0) {
 			//printk("I am ROOT\n");
-			*last_exp = '\0';
-			real_link = oi->oi_symlink+5;
+		  real_link = oi->oi_symlink+1;
 		}
 		else  {
 			//printk("Not ROOT\n");
-			real_link = last_exp+1;
+		  real_link = strchr(oi->oi_symlink, '\0')+1;
 		}
 		nd_set_link(nd, real_link);
 		return (void *) 0;
 	}
+	eprintk("Checkpoint2");
   nd_set_link(nd, oi->oi_symlink);
   return (void *) 0;
 }
@@ -1652,6 +1658,6 @@ module_init(init_ospfs_fs)
 module_exit(exit_ospfs_fs)
 
 // Information about the module
-MODULE_AUTHOR("Skeletor");
+MODULE_AUTHOR("Kevin Luc and Brandon Wu");
 MODULE_DESCRIPTION("OSPFS");
 MODULE_LICENSE("GPL");
